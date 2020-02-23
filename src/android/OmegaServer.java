@@ -1,4 +1,4 @@
-package com.steveberek.cordova.plugin.omega;
+package com.steveberek.cordova.plugin;
 
 import android.os.AsyncTask;
 import android.util.Log;
