@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        id="cordova-plugin-omegaserver" version="1.0.0">
+    <name>Omega Server</name>
+
+    <description>An Android Cordova plugin that allows users to turn their app into an http server</description>
+    <license>MIT</license>
+
+    <keywords>cordova,android, http, server, omegaserver, nanohttpd, webserver</keywords>
+    <repo>https://github.com/steve-berek/omegaserver.git</repo>
+    <issue>https://github.com/steve-berek/omegaserver/issues</issue>
+  
+    <engines>
+        <engine name="cordova" version=">=3.0.0"/>
+    </engines>
+  
+    <js-module src="www/omegaserver.js" name="OmegaServer">
+        <clobbers target="window.plugins.omegaserver" />
+    </js-module>
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="OmegaServer">
+                <param name="android-package" value="com.steveberek.cordova.plugin.omegaserver"/>
+            </feature>
+        </config-file>
+        <source-file src="src/android/OmegaServer.java" target-dir="src/com/steveberek/cordova/plugin" />
+    </platform>
+</plugin>

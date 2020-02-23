@@ -1,0 +1,36 @@
+{
+    "name": "cordova-plugin-omegaserver",
+    "version": "0.0.1",
+    "description": "An Android Cordova plugin that allows users to turn their app into an http web server ",
+    "cordova": {
+      "id": "cordova-plugin-omegaserver",
+      "platforms": [
+        "android"
+      ]
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/steveberek/omegaserver.git"
+    },
+    "keywords": [
+      "webserver",
+      "server",
+      "http",
+      "nanohttpd",
+      "cordova",
+      "ecosystem:cordova",
+      "cordova-android"
+    ],
+    "engines": [
+      {
+        "name": "cordova",
+        "version": ">=3.0.0"
+      }
+    ],
+    "author": "Steve BEREKOUTOU <berekstan@icloud.com>",
+    "license": "MIT",
+    "bugs": {
+      "url": "https://github.com/steveberek/omegaserver/issues"
+    },
+    "homepage": "https://github.com/steveberek/omegaserver/"
+  }
