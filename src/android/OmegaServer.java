@@ -1,7 +1,6 @@
 package com.steveberek.cordova.plugin;
-
-
 import android.os.AsyncTask;
+
 public class OmegaServer extends CordovaPlugin {
 
 
