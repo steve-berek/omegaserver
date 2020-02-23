@@ -23,8 +23,8 @@ cordova.define("cordova-plugin-omegaserver.OmegaServer", function(require, expor
      if (!window.plugins) {
        window.plugins = {};
      }
-     window.plugins.omegaserver = new OmegaServer();
-     return window.plugins.omegaserver;
+     window.plugins.omegaServer = new OmegaServer();
+     return window.plugins.omegaServer;
    };
    cordova.addConstructor(OmegaServer.install); 
    });
