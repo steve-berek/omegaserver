@@ -39,6 +39,7 @@ public class TinyWebServer extends Thread {
     private static ServerSocket serverSocket;
     private final Map<String, String> lowerCaseHeader = new HashMap<>();
 
+     private String TAG = "OMEGA_HTTP_SERVER";
     public static String CONTENT_TYPE = "text/html";
     private String CONTENT_DATE = "";
     private String CONN_TYPE = "";

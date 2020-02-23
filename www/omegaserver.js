@@ -5,13 +5,13 @@ cordova.define("cordova-plugin-omegaserver.OmegaServer", function(require, expor
    
    // The function that passes work along to native shells
    // Message is a string, duration may be 'long' or 'short'
-   OmegaServer.prototype.playVideo = function(root, port,  successCallback, errorCallback) {
+   OmegaServer.prototype.startServer = function(root, port,  successCallback, errorCallback) {
      var options = {};
      options.root = root;
      options.port = port;
      exec(successCallback, errorCallback, 'OmegaServer', 'startServer', [options]);
    }
-   OmegaServer.prototype.stopVideo = function(successCallback, errorCallback) {
+   OmegaServer.prototype.stopServer = function(successCallback, errorCallback) {
      var options = {};
      exec(successCallback, errorCallback, 'OmegaServer', 'stopServer', [options]);
    }
