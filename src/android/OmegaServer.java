@@ -1,6 +1,7 @@
 package com.steveberek.cordova.plugin;
 
 import android.os.AsyncTask;
+import android.text.Html;
 import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
@@ -19,6 +20,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -63,7 +65,7 @@ public class OmegaServer extends CordovaPlugin {
                     this.port = Integer.valueOf(port);
                     cordova.getActivity().runOnUiThread(new Runnable() {
                         public void run() {
-                            new TinyServerTask().execute();
+                            new TinyServerTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
                             PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
                             globalCallbackContext.sendPluginResult(pluginResult);
                         }
@@ -107,6 +109,7 @@ public class OmegaServer extends CordovaPlugin {
     }
     public class TinyServerTask extends AsyncTask<String, Void, Void> {
         protected Void doInBackground(String... urls) {
+            Log.d(TAG, "ASYNC_TASK_RUNNING...");
             startServer();
             return null;
         }
@@ -208,43 +211,90 @@ public class OmegaServer extends CordovaPlugin {
 
         private static final Pattern BOUNDARY_PATTERN = Pattern.compile(BOUNDARY_REGEX, Pattern.CASE_INSENSITIVE);
 
+        private String ip;
+        private int port;
 
         public static String WEB_DIR_PATH="/";
         public static String SERVER_IP="localhost";
         public static int SERVER_PORT=9000;
         public static boolean isStart=true;
         public static String INDEX_FILE_NAME="index.html";
+        private Thread clientThread;
+        private Socket clientSocket;
 
 
         public TinyWebServer(final String ip, final int port) throws IOException {
-
-            InetAddress addr = InetAddress.getByName(ip); ////"172.31.0.186");
-            serverSocket = new ServerSocket(port, 100, addr);
-            serverSocket.setSoTimeout(5000);  //set timeout for listner
-
+        this.ip = ip;
+        this.port = port;
+        initSocket();
         }
 
+        public void initSocket() throws IOException {
+            if( serverSocket != null ) {
+                serverSocket.close();
+                serverSocket = null ;
+            }
+
+            InetAddress addr = InetAddress.getByName(ip);
+            // serverSocket = new ServerSocket(port, 100, addr);
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(addr, port));
+            Log.d(TAG, "RUNNING_PROCESS_TOP_SUPER");
+            // serverSocket.setSoTimeout(30000);
+        }
+        public void restartSocket()  throws IOException {
+            try {
+                if ( serverSocket.isClosed() ) {
+                    InetAddress addr = InetAddress.getByName(ip);
+                    serverSocket.bind(new InetSocketAddress(addr, port));
+                }
+                clientSocket = serverSocket.accept();
+                clientSocket.setKeepAlive(true);
+                // clientSocket.setSoTimeout(30000);
+                clientThread = new EchoThread(clientSocket);
+                clientThread.start();
+            } catch (Exception ex) {
+                Log.d(TAG, "RUNNING_PROCESS_RESTART_SOCKET");
+                ex.printStackTrace();
+            }
+
+        }
         @Override
         public void run() {
-
+            Log.d(TAG, "RUNNING_PROCESS_TOP_FIRST");
             while (isStart) {
-                try {
-                    //wait for new connection on port 5000
-                    Socket newSocket = serverSocket.accept();
-                    Thread newClient = new EchoThread(newSocket);
-                    newClient.start();
-                } catch (SocketTimeoutException s) {
-                } catch (IOException e) {
-                }
+                    try {
+                        Log.d(TAG, "RUNNING_PROCESS_TOP");
+                        //wait for new connection on port 5000
+                        restartSocket();
 
+                    } catch (SocketTimeoutException s) {
+                        s.printStackTrace();
+                        Log.d(TAG, "RUNNING_PROCESS_TOP_TIMEOUT");
+                    } catch (IOException e) {
+                        if(null!= serverSocket&& !serverSocket.isClosed()) {
+                            try {
+                                Log.i(TAG,"Closing Server connection");
+                                serverSocket.close();
+                            } catch (IOException e2) {
+                                e2.printStackTrace();
+                            }
+                        }
+                        e.printStackTrace();
+                        Log.d(TAG, "RUNNING_PROCESS_TOP_IOEXCEPTION");
+
+                    }
             }//endof Never Ending while loop
-
+            Log.d(TAG, "RUNNING_PROCESS_LOOP_END");
         }
 
         public class EchoThread extends Thread {
 
             protected Socket socket;
             protected boolean nb_open;
+            private DataInputStream in ;
+            private DataOutputStream out;
 
             public EchoThread(Socket clientSocket) {
                 this.socket = clientSocket;
@@ -255,86 +305,121 @@ public class OmegaServer extends CordovaPlugin {
             public void run() {
 
                 try {
-                    DataInputStream in = null;
-                    DataOutputStream out = null;
 
+
+                    Log.d(TAG, "RUNNING_PROCESS");
                     if (socket.isConnected()) {
                         in = new DataInputStream(socket.getInputStream());
                         out = new DataOutputStream(socket.getOutputStream());
+                    } else {
+                      //  restartSocket();
+                        return;
                     }
 
-                    byte[] data = new byte[1500];
-                    //socket.setSoTimeout(60 * 1000 * 5);
+                    if ( socket.getInputStream() != null && socket.getOutputStream() != null ) {
+                        byte[] data = new byte[1500];
+                        //socket.setSoTimeout(60 * 1000 * 5);
 
-                    while (in.read(data) != -1) {
-                        String recData = new String(data).trim();
-                        //System.out.println("received data: \n" + recData);
-                        //System.out.println("------------------------------");
-                        String[] header = recData.split("\\r?\\n");
+                        while ( socket.isConnected() && in.read(data) != -1) {
+                            String recData = new String(data).trim();
+                            //System.out.println("received data: \n" + recData);
+                            //System.out.println("------------------------------");
+                            String[] header = recData.split("\\r?\\n");
 
-                        String contentLen = "0";
-                        String contentType = "text/html";
-                        String connectionType = "keep-alive";
-                        String hostname = "";
-                        String userAgent = "";
-                        String encoding = "";
+                            String contentLen = "0";
+                            String contentType = "text/html";
+                            String connectionType = "keep-alive";
+                            String hostname = "";
+                            String userAgent = "";
+                            String encoding = "";
 
-                        String[] h1 = header[0].split(" ");
-                        if (h1.length == 3) {
-                            setRequestType(h1[0]);
-                            setHttpVer(h1[2]);
-                        }
+                            String[] h1 = header[0].split(" ");
+                            if (h1.length == 3) {
+                                setRequestType(h1[0]);
+                                setHttpVer(h1[2]);
+                            }
 
-                        for (int h = 0; h < header.length; h++) {
-                            String value = header[h].trim();
+                            for (int h = 0; h < header.length; h++) {
+                                String value = header[h].trim();
 
-                            //System.out.println(header[h]+" -> "+CONTENT_LENGTH_PATTERN.matcher(header[h]).find());
-                            if (CONTENT_LENGTH_PATTERN.matcher(value).find()) {
-                                contentLen = value.split(":")[1].trim();
-                            } else if (CONTENT_TYPE_PATTERN.matcher(value).find()) {
-                                contentType = value.split(":")[1].trim();
-                            } else if (CONNECTION_TYPE_PATTERN.matcher(value).find()) {
-                                connectionType = value.split(":")[1].trim();
-                            } else if (CLIENT_HOST_PATTERN.matcher(value).find()) {
-                                hostname = value.split(":")[1].trim();
-                            } else if (USER_AGENT_PATTERN.matcher(value).find()) {
-                                for (String ua : value.split(":")) {
-                                    if (!ua.equalsIgnoreCase("User-Agent:")) {
-                                        userAgent += ua.trim();
+                                //System.out.println(header[h]+" -> "+CONTENT_LENGTH_PATTERN.matcher(header[h]).find());
+                                if (CONTENT_LENGTH_PATTERN.matcher(value).find()) {
+                                    contentLen = value.split(":")[1].trim();
+                                } else if (CONTENT_TYPE_PATTERN.matcher(value).find()) {
+                                    contentType = value.split(":")[1].trim();
+                                } else if (CONNECTION_TYPE_PATTERN.matcher(value).find()) {
+                                    connectionType = value.split(":")[1].trim();
+                                } else if (CLIENT_HOST_PATTERN.matcher(value).find()) {
+                                    hostname = value.split(":")[1].trim();
+                                } else if (USER_AGENT_PATTERN.matcher(value).find()) {
+                                    for (String ua : value.split(":")) {
+                                        if (!ua.equalsIgnoreCase("User-Agent:")) {
+                                            userAgent += ua.trim();
+                                        }
+                                    }
+                                } else if (ACCEPT_ENCODING_PATTERN.matcher(value).find()) {
+                                    encoding = value.split(":")[1].trim();
+                                }
+
+                            }
+
+                            if (!REQUEST_TYPE.equals("")) {
+                                String postData = "";
+                                if (REQUEST_TYPE.equalsIgnoreCase("POST") && !contentLen.equals("0")) {
+                                    postData = header[header.length - 1];
+                                    if (postData.length() > 0 && contentLen.length() > 0) {
+                                        int len = Integer.valueOf(contentLen);
+                                        postData = postData.substring(0, len);
+                                        // System.out.println("Post data -> " + contentLen + " ->" + postData);
                                     }
                                 }
-                            } else if (ACCEPT_ENCODING_PATTERN.matcher(value).find()) {
-                                encoding = value.split(":")[1].trim();
-                            }
 
-                        }
-
-                        if (!REQUEST_TYPE.equals("")) {
-                            String postData = "";
-                            if (REQUEST_TYPE.equalsIgnoreCase("POST") && !contentLen.equals("0")) {
-                                postData = header[header.length - 1];
-                                if (postData.length() > 0 && contentLen.length() > 0) {
-                                    int len = Integer.valueOf(contentLen);
-                                    postData = postData.substring(0, len);
-                                    // System.out.println("Post data -> " + contentLen + " ->" + postData);
+                                // System.out.println("contentLen ->" + contentLen + "\ncontentType ->" + contentType + "\nhostname ->" + hostname + "\nconnectionType-> " + connectionType + "\nhostname ->" + hostname + "\nuserAgent -> " + userAgent);
+                                final String requestLocation = h1[1];
+                                if (requestLocation != null) {
+                                    processLocation(out, requestLocation, postData);
                                 }
+                                //System.out.println("requestLocation "+requestLocation);
                             }
-
-                            // System.out.println("contentLen ->" + contentLen + "\ncontentType ->" + contentType + "\nhostname ->" + hostname + "\nconnectionType-> " + connectionType + "\nhostname ->" + hostname + "\nuserAgent -> " + userAgent);
-                            final String requestLocation = h1[1];
-                            if (requestLocation != null) {
-                                processLocation(out, requestLocation, postData);
-                            }
-                            //System.out.println("requestLocation "+requestLocation);
+                        Log.d(TAG, "RUNNING_PROCESS_SLEEP_BEFORE ->"+ CONTENT_TYPE);
+                        Thread.sleep(400);
+                        Log.d(TAG, "RUNNING_PROCESS_SLEEP_AFTER -> "+ CONTENT_TYPE);
                         }
-
+                        Log.d(TAG, "RUNNING_PROCESS_WHILE_END");
                     }
+
+
                 } catch (Exception er) {
+                    Log.d(TAG, "RUNNING_PROCESS_BOTTOM_EXCEPTION");
                     er.printStackTrace();
+                    try {
+                        in.close();
+                        out.close();
+                        clientSocket.close();
+                        serverSocket.close();
+                        initSocket();
+                        restartSocket();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
 
             }
 
+        }
+
+        private static String cleanTextContent(String text)
+        {
+            // strips off all non-ASCII characters
+            text = text.replaceAll("[^\\x00-\\x7F]", "");
+
+            // erases all the ASCII control characters
+           // text = text.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
+
+            // removes non-printable characters from Unicode
+           // text = text.replaceAll("\\p{C}", "");
+
+            return text.trim();
         }
 
         public void processLocation(DataOutputStream out, String location, String postData) {
@@ -345,6 +430,7 @@ public class OmegaServer extends CordovaPlugin {
                     //root location, server index file
                     CONTENT_TYPE = "text/html";
                     data=readFile(WEB_DIR_PATH+"/"+INDEX_FILE_NAME);
+                    // data = cleanTextContent(data);
                     constructHeader(out, data.length() + "", data);
                     break;
                 default:
@@ -363,21 +449,36 @@ public class OmegaServer extends CordovaPlugin {
                         //System.out.println("File name " + fileName);
                         //System.out.println("url parms " + qparms);
                         CONTENT_TYPE = getContentType(fileName);
+                        Log.d(TAG, "CONTENT_TYPE_FILE -> " + CONTENT_TYPE);
                         if(!CONTENT_TYPE.equals("text/plain")){
                             // System.out.println("Full file path - >"+fullFilePath +" "+CONTENT_TYPE);
 
                             if(CONTENT_TYPE.equals("image/jpeg") || CONTENT_TYPE.equals("image/png") || CONTENT_TYPE.equals("video/mp4")){
                                 byte[] bytdata=readImageFiles(WEB_DIR_PATH+fullFilePath,CONTENT_TYPE);
+                                Log.d(TAG, "CONTENT_TYPE_FILE_READING_MEDIA... -> " + data);
                                 //System.out.println(bytdata.length);
                                 if(bytdata!=null){
                                     constructHeaderImage(out, bytdata.length+"", bytdata);
                                 }else{
                                     pageNotFound();
                                 }
-                            }else{
+                            }else if (CONTENT_TYPE.equals("text/html")){
                                 data=readFile(WEB_DIR_PATH+fullFilePath);
+                                // data = cleanTextContent(data);
+                                // data = Html.fromHtml(data).toString();
+
+                                Log.d(TAG, "CONTENT_TYPE_FILE_READING_HMTL... -> " + data);
                                 if(!data.equals("")){
-                                    constructHeader(out, data.length() + "", data);
+                                    constructHeader(out, String.valueOf(data.length()), data);
+                                }else{
+                                    pageNotFound();
+                                }
+                            } else  {
+                                data=readFile(WEB_DIR_PATH+fullFilePath);
+                                data = cleanTextContent(data);
+                                Log.d(TAG, "CONTENT_TYPE_FILE_READING_DIFF... -> " + data);
+                                if(!data.equals("")){
+                                    constructHeader(out, String.valueOf(data.length()), data);
                                 }else{
                                     pageNotFound();
                                 }
@@ -389,7 +490,6 @@ public class OmegaServer extends CordovaPlugin {
 
 
                     }
-
             }
 
         }
@@ -514,6 +614,7 @@ public class OmegaServer extends CordovaPlugin {
                 printHeader(pw, "Content-Type", this.CONTENT_TYPE);
             }
             printHeader(pw, "Date", gmtFrmt.format(new Date()));
+            printHeader(pw, "X-Content-Type-Options", "nosniff");
             printHeader(pw, "Connection", (this.keepAlive ? "keep-alive" : "close"));
             printHeader(pw, "Content-Length", size);
             printHeader(pw, "Server", SERVER_NAME);
